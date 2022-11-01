@@ -1,0 +1,16 @@
+﻿<AddOnInfo 
+	partnernmsp="Nordware" 
+	contdata="http://www.nordware.io"
+	addonname="AddOn Lumix" 
+	addongroup="M" 
+	esttime="60" 
+	instparams="" 
+	uncmdarg="/u" 
+	unesttime="60" 
+	partnername="Nordware" 
+	silentinst="N" 
+	silentugd="N" 
+	silentuninst="N" 
+	ugdcmdargs="" 
+	ugdesttime="180" 
+	platform="N" />

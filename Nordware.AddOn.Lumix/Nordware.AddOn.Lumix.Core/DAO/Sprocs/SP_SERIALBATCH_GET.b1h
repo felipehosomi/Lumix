@@ -1,0 +1,102 @@
+﻿ALTER PROCEDURE SP_SERIALBATCH_GET
+(
+	ItemCode	NVARCHAR(100),
+	BatchSerial	NVARCHAR(100),
+	BinCode		INT
+)
+LANGUAGE SQLSCRIPT 
+SQL SECURITY INVOKER 
+AS
+	itemManagement nvarchar(1); 
+	counter int; 
+BEGIN
+	create local temporary table #tmp
+	(
+		ItemCode nvarchar(100)
+		, WhsCode nvarchar(100)
+		, BinCode nvarchar(100)
+		, OnHandQty int
+		, DistNumber nvarchar(100)
+	);
+
+	create local temporary table #results
+	(
+		"ItemCode" nvarchar(100)
+		, "DistNumber" nvarchar(100)
+	);
+
+	SELECT 
+	    CASE 
+	        WHEN "ManBtchNum" = 'Y' THEN 'L' 
+	        ELSE 
+	        CASE 
+	            WHEN "ManSerNum" = 'Y' THEN 'S' 
+	            ELSE '' 
+	        END 
+	    END INTO itemManagement
+	FROM OITM 
+	WHERE "ItemCode" = itemCode;
+
+	if itemManagement = 'L' -- LOTE
+	THEN
+		insert into #tmp
+			SELECT DISTINCT T0."ItemCode", T0."WhsCode", T2."BinCode", 1, T1."DistNumber" 
+			FROM OBBQ T0 
+			    INNER JOIN OBTN T1 ON T0."SnBMDAbs" = T1."AbsEntry" 
+			    INNER JOIN OBIN T2 ON T0."BinAbs" = T2."AbsEntry" 
+			WHERE 1 = 1 AND T0."OnHandQty" <> 0 AND T0."ItemCode" = IFNULL(itemCode, T0."ItemCode") AND
+			     T1."DistNumber" = IFNULL(BatchSerial, T1."DistNumber") AND T0."BinAbs" = IFNULL(BinCode, T0."BinAbs");
+	
+	ELSEIF itemManagement = 'S' -- SERIE
+	THEN
+		insert into #tmp
+			SELECT T0."ItemCode", T0."WhsCode", T2."BinCode", T0."OnHandQty", T1."DistNumber" 
+			FROM OSBQ T0 
+			    INNER JOIN OSRN T1 ON T0."SnBMDAbs" = T1."AbsEntry" 
+			    INNER JOIN OBIN T2 ON T0."BinAbs" = T2."AbsEntry" 
+			WHERE 1 = 1 AND T0."OnHandQty" <> 0 AND T0."ItemCode" = IFNULL(itemCode, T0."ItemCode") AND
+			     T1."DistNumber" = IFNULL(BatchSerial, T1."DistNumber") AND T0."BinAbs" = IFNULL(BinCode, T0."BinAbs");
+	
+	ELSE
+	
+		insert into #tmp
+			SELECT DISTINCT T0."ItemCode", T0."WhsCode", T2."BinCode", 1, T1."DistNumber" 
+			FROM OBBQ T0 
+			    INNER JOIN OBTN T1 ON T0."SnBMDAbs" = T1."AbsEntry" 
+			    INNER JOIN OBIN T2 ON T0."BinAbs" = T2."AbsEntry" 
+			WHERE 1 = 1 AND T0."OnHandQty" <> 0 AND T0."ItemCode" = IFNULL(itemCode, T0."ItemCode") AND
+			     T1."DistNumber" = IFNULL(BatchSerial, T1."DistNumber") AND T0."BinAbs" = IFNULL(BinCode, T0."BinAbs") 
+			UNION ALL 
+			SELECT T0."ItemCode", T0."WhsCode", T2."BinCode", T0."OnHandQty", T1."DistNumber" 
+			FROM OSBQ T0 
+			    INNER JOIN OSRN T1 ON T0."SnBMDAbs" = T1."AbsEntry" 
+			    INNER JOIN OBIN T2 ON T0."BinAbs" = T2."AbsEntry" 
+			WHERE 1 = 1 AND T0."OnHandQty" <> 0 AND T0."ItemCode" = IFNULL(itemCode, T0."ItemCode") AND
+			     T1."DistNumber" = IFNULL(BatchSerial, T1."DistNumber") AND T0."BinAbs" = IFNULL(BinCode, T0."BinAbs");
+	end if;
+	
+	BEGIN
+	DECLARE CURSOR cur1 FOR select ItemCode, DistNumber, OnHandQty from #tmp;
+	
+	FOR cur_row as cur1 DO
+		counter := 0;
+	
+    	while counter < cur_row.onHandQty
+		DO
+			insert into #results values(cur_row.itemCode, cur_row.distNumber);
+			counter := counter + 1;
+		end while;
+	END FOR;
+	END;
+	
+	select RES.*, 
+		OITM."SalUnitMsr" as "UnitVenda",
+		OITM."BuyUnitMsr" as "UnitCompra"
+	from #results RES
+		INNER JOIN OITM ON RES."ItemCode" = OITM."ItemCode";
+
+	drop table #tmp;
+	drop table #results;
+
+
+END
